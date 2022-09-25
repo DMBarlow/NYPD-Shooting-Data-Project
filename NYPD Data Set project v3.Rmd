@@ -1,0 +1,135 @@
+---
+title: "NYPD Shooting Incident Data Analysis"
+author: "Barlow.DM"
+date: "2022-09-07"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(lubridate)
+library(magrittr)
+library(ggplot2)
+library(nnet)
+
+```
+
+
+## Import Data from data.gov repository
+This Data set is a list of shooting incidences that occurred in New York City from 2006 through to the end of the previous calendar year. 
+
+1. Download and Read csv from repo
+
+``` {r, Download and Read Csv}
+Shooting_incidence <- read.csv("https://data.cityofnewyork.us/api/views/833y-fsy8/rows.csv?accessType=DOWNLOAD")
+```
+
+## Data Clean Up
+
+2. Remove unnecessary columns.
+``` {r, Col removal}
+Shooting_incidence <- Shooting_incidence %>%
+  select(-c(INCIDENT_KEY,JURISDICTION_CODE,X_COORD_CD, Y_COORD_CD, Latitude, Longitude, Lon_Lat))
+```
+
+3. Covert Date str to Date type
+```{r, Date conversion}
+Shooting_incidence <- Shooting_incidence %>%  
+  mutate(OCCUR_DATE = mdy(OCCUR_DATE)) %>%
+  mutate(OCCUR_TIME = hms(OCCUR_TIME))
+```
+
+4. Convert Chr to Factors to allow for analysis and plotting. 
+```{r, Type conversion}
+Shooting_incidence <- Shooting_incidence %>%
+  mutate(VIC_SEX = factor(VIC_SEX)) %>%
+  mutate(PERP_SEX = factor(PERP_SEX)) %>%
+  mutate(STATISTICAL_MURDER_FLAG = factor(STATISTICAL_MURDER_FLAG)) %>%
+  mutate(PERP_AGE_GROUP = factor(PERP_AGE_GROUP)) %>%
+  mutate(VIC_AGE_GROUP = factor(VIC_AGE_GROUP)) %>%
+  mutate(PERP_RACE = factor(PERP_RACE)) %>%
+  mutate(VIC_RACE = factor(VIC_RACE)) %>%
+  mutate(LOCATION_DESC = factor(LOCATION_DESC))
+```
+```{r}
+summary(Shooting_incidence)
+```
+
+## Data Visualization
+
+5. Generate Plots of Victim Count by age grouping, Occurrence By Time of Day radial plot, and a stacked bar plot of the Proportion of Occurrences against a Given race based on the race of the perp.
+
+```{r, Plot 1}
+Age_of_vic <- ggplot(Shooting_incidence, aes(x = VIC_AGE_GROUP)) +
+  geom_bar() +
+  ggtitle("Occurrences by Victim's Age") +
+  xlab("Victim's Age") +
+  ylab("Number of Occurrences")
+
+Age_of_vic
+```
+
+```{r, Plot 2}
+time_of_day_radial_plot <- ggplot(Shooting_incidence, aes(x = hour(OCCUR_TIME))) + 
+  geom_histogram(binwidth = 1, color = "black", fill = "white") + 
+  coord_polar(start = 0) + 
+  theme_minimal() + 
+    scale_fill_brewer() + 
+    ylab("Occurences") + 
+    ggtitle("Occurrences by Time of Day") +
+    scale_x_time("", breaks = seq(0, 24), labels = seq(0, 24))
+    
+time_of_day_radial_plot
+```
+
+```{r}
+RACE_VIC_PERP_COMPARISON <- Shooting_incidence %>%
+  group_by(PERP_RACE, VIC_RACE) %>%
+  tally() %>%
+  group_by(PERP_RACE) %>%
+  mutate(x = n / sum(n)) %>%
+  ggplot() +
+    geom_col(aes(
+      x = PERP_RACE,
+      y = x,
+      fill = VIC_RACE
+      ), position = "stack") +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+RACE_VIC_PERP_COMPARISON
+
+```
+
+6. Display Data Summary
+```{r, Full Summary}
+summary(Shooting_incidence)
+```
+
+## Analysis
+
+7. Considering the Plots. 
+
+The plot displaying occurrence counts by victims age shows that significantly more persons in the 18-45 ranges are likely to be victims of shooting, with rates of occurrence falling precipitously after 45. Gathering more specific age data would allow better determination of risk by age (by year or some smaller categorization). Higher fidelity data would allow use to compare this to other age linked statistics which may have a relationship to gun violence, such as socio-economic status, or risk aversion. 
+
+  The second plot shows the occurrences sorted by time of day. Showing a slow increase from roughly midday until it peaks at midnight, with more occurrences happening between the hours of 6pm and 5am. This clustering of occurrences during night likely have a relationship with desire for obfuscation, lower presence of bystanders, but may also relate to the hours most victims and perps are active given that the cohorts involved are younger and more likely to be awake and active during these late hours.
+  
+  The final plot compares the Perps Race with the Victims. It appears that for some racial groups there is a higher tendancy to commit violence against the members of the same racial groupings. This may be occurring due to proximity and urban clustering, which may be further derived from socio-economic factors. Otherwise, it may be linked to social factors independant of geo-location. This would require further analysis and study to determine.
+  
+  Looking at the total summarized data, without plotting, there are some significant differences in gender, race and age which exists both in victim and perp data. The majority of occurrences involve males from visible minority groups. Researching further into the unique socio-cultural circumstances regarding young males from these minority groups would be warranted in order to determine potential causal factors that could be targeted by policy or support mechanisms. 
+
+
+## Conclusion and Bias Identification
+
+8. Conclusion.
+
+Further iterative analysis and combination of this data set with others, such as labour/socio-economic/educational data sets, would be necessary to conduct more fulsome research on such a complex topic. An initial glance at the data set shows a seemly significant relationship between age, gender, and race when it comes to both being a perpetrator or victim of gun violence. Gun violence is predominantly affecting young men from minority communities and any proposed intervention strategies would need to be based on detailed study of this cohort and their unique socio-cultural circumstances. The frequency of events per hour could be further analyzed and associated with geographic date forming a heat map or probabilistic model of event likelihood. This could allow policing and community support resources to be allocated efficiently for prevention, deterrence or response. 
+
+9. Bias.
+
+I likely impart person biases to my analysis and conclusions in that I know little of the source area and have never lived in an area with any significant gun violence. I also have limited experiences with members of the cohorts most represented in the data set, that is young urban males from minority groups in the USA. This makes drawing inferences from the data as to possible casual relationships with other data challenging. I would need to avoid looking for confirmation bias in other data sets and attempt to form series of alternative hypothesis which I could test. There may also be bias in the data collection and reporting itself due to false, manipulated, or mistaken form inputs. Reporting and collection standards may vary by precinct as well. 
+
+
